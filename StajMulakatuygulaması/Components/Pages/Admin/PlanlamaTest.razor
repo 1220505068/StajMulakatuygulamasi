@@ -1,0 +1,133 @@
+﻿@page "/mulakat-planlama"
+@using Microsoft.AspNetCore.Authorization
+@rendermode InteractiveServer
+@using StajMulakatuygulamasi.Services
+@using StajMulakatuygulamasi.Models.Scheduling
+@using Radzen
+@using Radzen.Blazor
+@inject SchedulingService AlgorithmService
+@inject SchedulingDataService DataService
+@inject DialogService DialogService
+@inject NavigationManager Navigation  
+<PageTitle>Mülakat Planlama Testi</PageTitle>
+
+<div class="container py-5">
+    @* --- ANA SAYFAYA DÖN BUTONU --- *@
+    <button class="btn btn-outline-secondary mb-4" @onclick='() => Navigation.NavigateTo("/admin-panel")'>
+        <i class="bi bi-arrow-left me-2"></i> Ana Sayfaya Geri Dön
+    </button>
+    @* ------------------------------ *@
+
+    <div class="modern-card p-5 shadow-sm text-center">
+        <h2 class="fw-bold text-primary mb-4">Otomatik Mülakat Planlama</h2>
+        <p class="text-muted mb-4">
+            Bu işlem, veritabanındaki tüm öğretim görevlisi müsaitliklerini ve öğrenci listesini alarak,
+            backtracking algoritması ile en uygun mülakat programını oluşturur ve veritabanına kaydeder.
+        </p>
+
+        @if (isProcessing)
+        {
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">İşleniyor...</span>
+            </div>
+            <p class="mt-2">Algoritma çalışıyor, lütfen bekleyin...</p>
+        }
+        else
+        {
+            <button class="btn btn-primary btn-lg rounded-pill px-5" @onclick="PlanlamayiBaslat">
+                <i class="bi bi-cpu-fill me-2"></i> Planlamayı Başlat
+            </button>
+        }
+
+        @if (sonucMesaji != null)
+        {
+            <div class="alert @alertClass mt-4 animate__animated animate__fadeIn">
+                @sonucMesaji
+            </div>
+        }
+
+        @if (finalSchedule != null && finalSchedule.Any())
+        {
+            <div class="mt-5 text-start animate__animated animate__fadeInUp">
+                <h4 class="fw-bold mb-3">Oluşturulan Program Önizlemesi (@finalSchedule.Count Atama)</h4>
+                <RadzenDataGrid Data="@finalSchedule" TItem="AssignedInterview" AllowPaging="true" PageSize="10" Class="shadow-sm rounded">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="AssignedInterview" Property="Student.Name" Title="Öğrenci" />
+                        <RadzenDataGridColumn TItem="AssignedInterview" Property="Student.PriorityScore" Title="Öncelik Puanı" Width="120px" />
+                        <RadzenDataGridColumn TItem="AssignedInterview" Property="Instructor.Name" Title="Akademisyen" />
+                        <RadzenDataGridColumn TItem="AssignedInterview" Title="Gün">
+                            <Template Context="data">
+                                @GünAdıVer(data.Slot.DayOfWeek)
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="AssignedInterview" Title="Saat">
+                            <Template Context="data">
+                                @data.Slot.StartTime.ToString("HH:mm")
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isProcessing = false;
+    private string? sonucMesaji;
+    private string alertClass = "alert-info";
+    private List<AssignedInterview>? finalSchedule;
+
+    private async Task PlanlamayiBaslat()
+    {
+        isProcessing = true;
+        sonucMesaji = null;
+        StateHasChanged();
+
+        try
+        {
+            // 1. Verileri Hazırla
+            var students = await DataService.GetStudentsForAlgorithmAsync();
+            var instructors = await DataService.GetInstructorsForAlgorithmAsync();
+
+            if (instructors.Count == 0 || students.Count == 0)
+            {
+                throw new Exception("Yeterli veri yok. Lütfen veritabanında 'Ogrenci' ve 'OgretimGorevlisi' rollerine sahip kullanıcılar olduğundan emin olun.");
+            }
+
+            // 2. Algoritmayı Çalıştır
+            finalSchedule = await Task.Run(() => AlgorithmService.GenerateSchedule(students, instructors));
+
+            if (finalSchedule != null && finalSchedule.Count > 0)
+            {
+                // 3. Sonucu Kaydet
+                await DataService.SaveScheduleToDbAsync(finalSchedule);
+
+                sonucMesaji = $"Planlama başarıyla tamamlandı! Toplam {finalSchedule.Count} öğrenci yerleştirildi ve veritabanına kaydedildi.";
+                alertClass = "alert-success";
+            }
+            else
+            {
+                sonucMesaji = "Algoritma çalıştı ancak uygun bir yerleşim planı BULUNAMADI. Kısıtlar çok sıkı olabilir.";
+                alertClass = "alert-warning";
+            }
+
+        }
+        catch (Exception ex)
+        {
+            var mesaj = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+            sonucMesaji = $"Kayıt Hatası: {mesaj}";
+            alertClass = "alert-danger";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GünAdıVer(int gunIndex)
+    {
+        return gunIndex switch { 1 => "Pazartesi", 2 => "Salı", 3 => "Çarşamba", 4 => "Perşembe", 5 => "Cuma", _ => "Bilinmiyor" };
+    }
+}

@@ -1,0 +1,186 @@
+﻿@page "/hoca-musaitlik"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using StajMulakatuygulamasi.Models
+@using StajMulakatuygulamasi.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject SchedulingDataService DataService
+@inject NavigationManager Navigation
+
+@rendermode InteractiveServer
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-success">Müsaitlik Bildirimi</h2>
+            <p class="text-muted">Müsait olduğunuz saatleri yeşil ile işaretleyiniz.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("/home")'>
+            <i class="bi bi-arrow-left"></i> Geri Dön
+        </button>
+    </div>
+
+    @if (isLocked)
+    {
+        <div class="alert alert-warning">Sistem Kilitli! Değişiklik yapılamaz.</div>
+    }
+
+    <div class="card shadow border-0">
+        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered text-center align-middle">
+                        <thead class="bg-light text-success">
+                            <tr>
+                                <th style="width: 100px;">Saat</th>
+                                @foreach (var gun in gunler)
+                                {
+                                    <th>@gun</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int saat = 9; saat <= 17; saat++)
+                            {
+                                // --- KRİTİK DÜZELTME BURADA ---
+                                // Döngü değişkenini (saat) yerel bir değişkene kopyalıyoruz.
+                                // Bunu yapmazsak tıkladığında hep "18" değerini görür!
+                                int currentSaat = saat;
+
+                                <tr>
+                                    <td class="fw-bold text-muted">@($"{currentSaat:00}:00")</td>
+                                    @foreach (var gun in gunler)
+                                    {
+                                        bool isSelected = IsSelected(gun, currentSaat);
+
+                                        // --- DÜZELTME BURADA ---
+                                        // Seçiliyse (isSelected == true) -> "Müsait" yazmalı ve Yeşil olmalı.
+                                        // Seçili değilse -> "-" yazmalı.
+
+                                        string cellClass = isSelected ? "bg-success text-white" : "bg-light text-muted";
+                                        string icon = isSelected ? "bi-check-circle-fill" : "bi-dash-circle";
+
+                                        // HATA BURADAYDI ("Dolu" yazıyordu, "Müsait" yaptık)
+                                        string text = isSelected ? "Müsait" : "-";
+
+                                        <td class="@cellClass user-select-none" style="cursor: pointer; transition: 0.2s;"
+                                            @onclick="() => ToggleSlot(gun, currentSaat)">
+
+                                            @if (!isLocked)
+                                            {
+                                                <div class="d-flex flex-column align-items-center justify-content-center py-2">
+                                                    <i class="bi @icon fs-5 mb-1"></i>
+                                                    <small style="font-size:0.75rem;">@text</small>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="py-2 opacity-50">
+                                                    <i class="bi @icon fs-5"></i>
+                                                </div>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (!isLocked)
+                {
+                    <div class="d-flex justify-content-end mt-4">
+                        <button class="btn btn-success btn-lg px-5 rounded-pill" @onclick="Kaydet" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Kaydet
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isLocked = false;
+    private int currentUserId;
+
+    private string[] gunler = { "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma" };
+    private HashSet<string> seciliSaatler = new HashSet<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            var idClaim = user.FindFirst("UserId");
+            if (idClaim != null && int.TryParse(idClaim.Value, out int id)) currentUserId = id;
+        }
+
+        isLocked = await DataService.IsSystemLockedAsync();
+
+        // OKUMA: DB(int) -> UI(string)
+        var mevcutVeriler = await DataService.GetHocaMusaitlikAsync(currentUserId);
+        foreach (var item in mevcutVeriler)
+        {
+            string gunAdi = GunIndexiniMetneCevir(item.Gun);
+            seciliSaatler.Add($"{gunAdi}-{item.Saat}");
+        }
+
+        isLoading = false;
+    }
+
+    private bool IsSelected(string gun, int saat) => seciliSaatler.Contains($"{gun}-{saat}");
+
+    private void ToggleSlot(string gun, int saat)
+    {
+        if (isLocked) return;
+        string key = $"{gun}-{saat}";
+        if (seciliSaatler.Contains(key)) seciliSaatler.Remove(key);
+        else seciliSaatler.Add(key);
+    }
+
+    private async Task Kaydet()
+    {
+        isSaving = true;
+        var kayitListesi = new List<HocaMusaitlik>();
+
+        foreach (var key in seciliSaatler)
+        {
+            var parts = key.Split('-');
+
+            kayitListesi.Add(new HocaMusaitlik
+            {
+                KullaniciID = currentUserId,
+                // YAZMA: UI(string) -> DB(int)
+                Gun = GunMetniniIndexeCevir(parts[0]),
+                Saat = int.Parse(parts[1])
+            });
+        }
+
+        await DataService.SaveHocaMusaitlikAsync(currentUserId, kayitListesi);
+        isSaving = false;
+    }
+
+    // DÖNÜŞTÜRÜCÜLER
+    private int GunMetniniIndexeCevir(string gun)
+    {
+        return gun switch { "Pazartesi" => 1, "Salı" => 2, "Çarşamba" => 3, "Perşembe" => 4, "Cuma" => 5, _ => 1 };
+    }
+
+    private string GunIndexiniMetneCevir(int index)
+    {
+        return index switch { 1 => "Pazartesi", 2 => "Salı", 3 => "Çarşamba", 4 => "Perşembe", 5 => "Cuma", _ => "Pazartesi" };
+    }
+}

@@ -1,0 +1,142 @@
+﻿@page "/akademisyen-panel"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using System.Text
+@using System.IO
+@using StajMulakatuygulamasi.Models
+@using StajMulakatuygulamasi.Services
+
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject SchedulingDataService DataService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation 
+
+@rendermode InteractiveServer
+
+<PageTitle>Akademisyen Paneli</PageTitle>
+
+<div class="container py-4">
+    @* --- ANA SAYFAYA DÖN BUTONU --- *@
+    <button class="btn btn-outline-secondary mb-4" @onclick='() => Navigation.NavigateTo("/home")'>
+        <i class="bi bi-arrow-left me-2"></i> Ana Sayfaya Geri Dön
+    </button>
+    @* ------------------------------ *@
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary">Mülakat Programım</h2>
+            <p class="text-muted">Size atanan mülakatların listesi.</p>
+        </div>
+        @* EXCEL İNDİRME BUTONU *@
+        <button class="btn btn-success" @onclick="DownloadExcel">
+            <i class="bi bi-file-earmark-excel-fill me-2"></i> Listeyi İndir (Excel/CSV)
+        </button>
+    </div>
+
+    @if (mulakatlar == null)
+    {
+        <div class="spinner-border text-primary" role="status"></div>
+    }
+    else if (mulakatlar.Count == 0)
+    {
+        <div class="alert alert-info">Henüz size atanmış bir mülakat planı bulunmamaktadır.</div>
+    }
+    else
+    {
+        @* DİNAMİK VERİ TABLOSU *@
+        <RadzenDataGrid Data="@mulakatlar" TItem="PlanlananMulakatlar" AllowSorting="true" AllowPaging="true" PageSize="10" Class="shadow-sm">
+            <Columns>
+                <RadzenDataGridColumn TItem="PlanlananMulakatlar" Property="BaslangicSaati" Title="Tarih & Saat" Width="180px">
+                    <Template Context="data">
+                        @data.BaslangicSaati.ToString("dd.MM.yyyy HH:mm")
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="PlanlananMulakatlar" Title="Öğrenci Adı Soyad">
+                    <Template Context="data">
+                        <span class="fw-bold">@data.Student?.Ad @data.Student?.Soyad</span>
+                        <br />
+                        <small class="text-muted">@data.Student?.Username</small>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="PlanlananMulakatlar" Property="Durum" Title="Durum" Width="150px">
+                    <Template Context="data">
+                        @if (data.Durum == "Planlandı")
+                        {
+                            <span class="badge bg-warning text-dark">Planlandı</span>
+                        }
+                        else if (data.Durum == "Tamamlandı")
+                        {
+                            <span class="badge bg-success">Tamamlandı</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">@data.Durum</span>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+</div>
+
+@code {
+    private List<PlanlananMulakatlar> mulakatlar;
+    private int currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Giriş yapan hocanın ID'sini bul
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            // Claim'lerden UserID'yi çekiyoruz
+            var userIdClaim = user.FindFirst("UserId");
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int id))
+            {
+                currentUserId = id;
+                // 2. Bu hocaya ait mülakatları getir
+                mulakatlar = await DataService.GetMulakatlarByHocaIdAsync(currentUserId);
+            }
+        }
+    }
+
+    // BASİT CSV/EXCEL İNDİRME METODU
+    private async Task DownloadExcel()
+    {
+        if (mulakatlar == null || !mulakatlar.Any()) return;
+
+        var sb = new StringBuilder();
+        // Başlıklar
+        sb.AppendLine("Tarih;Saat;Ogrenci No;Ogrenci Ad Soyad;Durum");
+
+        // Satırlar
+        foreach (var item in mulakatlar)
+        {
+            var tarih = item.BaslangicSaati.ToString("dd.MM.yyyy");
+            var saat = item.BaslangicSaati.ToString("HH:mm");
+            var ogrNo = item.Student?.Username ?? "-";
+            var ogrAd = $"{item.Student?.Ad} {item.Student?.Soyad}";
+
+            sb.AppendLine($"{tarih};{saat};{ogrNo};{ogrAd};{item.Durum}");
+        }
+
+        // Dosyayı oluştur ve indirt
+        var fileContent = Encoding.UTF8.GetBytes(sb.ToString());
+        // UTF-8 BOM ekle ki Excel Türkçe karakterleri düzgün açsın
+        var preamble = Encoding.UTF8.GetPreamble();
+        var completeBytes = new byte[preamble.Length + fileContent.Length];
+        Buffer.BlockCopy(preamble, 0, completeBytes, 0, preamble.Length);
+        Buffer.BlockCopy(fileContent, 0, completeBytes, preamble.Length, fileContent.Length);
+
+        using var stream = new MemoryStream(completeBytes);
+        using var streamRef = new DotNetStreamReference(stream);
+
+        await JS.InvokeVoidAsync("downloadFileFromStream", "Mulakat_Listesi.csv", streamRef);
+    }
+}

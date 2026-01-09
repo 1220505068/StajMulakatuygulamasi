@@ -1,0 +1,282 @@
+﻿@page "/"
+@page "/login"
+@using StajMulakatuygulamasi.Services
+@using StajMulakatuygulamasi.Models
+@using System.ComponentModel.DataAnnotations
+@* Authorize hatası için gerekli kütüphane: *@
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Giriş Yap - Staj Mülakat Sistemi</PageTitle>
+
+@* --- CSS STİLLERİ --- *@
+<style>
+    :root {
+        --login-bg: #f0f2f5;
+        --student-color: #0056b3;
+        --hoca-color: #00bcd4;
+        --ois-color: #ee5253;
+        --text-dark: #2d3748;
+    }
+
+    body {
+        background-color: var(--login-bg);
+        font-family: 'Segoe UI', Roboto, sans-serif;
+        overflow-x: hidden;
+    }
+
+    .login-container {
+        min-height: 100vh;
+    }
+
+    /* Sol Hero Alanı */
+    .login-hero {
+        background: linear-gradient(rgba(0, 51, 102, 0.8), rgba(0, 51, 102, 0.8)), url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1920&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 4rem;
+    }
+
+    /* Sağ Form Alanı */
+    .login-form-section {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: #fff;
+    }
+
+    .login-card {
+        width: 100%;
+        max-width: 450px;
+        padding: 2rem;
+    }
+
+    .nav-pills .nav-link {
+        border-radius: 50px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        color: var(--text-dark);
+        background: #f0f2f5;
+        margin: 0 5px;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+
+        .nav-pills .nav-link.active-student {
+            background: var(--student-color);
+            color: white;
+        }
+
+        .nav-pills .nav-link.active-hoca {
+            background: var(--hoca-color);
+            color: white;
+        }
+
+        .nav-pills .nav-link.active-ois {
+            background: var(--ois-color);
+            color: white;
+        }
+
+    .focus-student:focus {
+        border-color: var(--student-color) !important;
+    }
+
+    .focus-hoca:focus {
+        border-color: var(--hoca-color) !important;
+    }
+
+    .focus-ois:focus {
+        border-color: var(--ois-color) !important;
+    }
+
+    .btn-login-modern {
+        border-radius: 50px;
+        padding: 1rem;
+        font-weight: 700;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .btn-student-grad {
+        background: linear-gradient(135deg, #003366, #4facfe);
+    }
+
+    .btn-hoca-grad {
+        background: linear-gradient(135deg, #00bcd4, #1de9b6);
+    }
+
+    .btn-ois-grad {
+        background: linear-gradient(135deg, #ee5253, #ff9f43);
+    }
+
+    .form-floating > .form-control {
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+    }
+</style>
+
+<div class="container-fluid p-0 login-container animate__animated animate__fadeIn">
+    <div class="row g-0 h-100">
+
+        @* SOL TARA (HERO) *@
+        <div class="col-lg-6 d-none d-lg-flex login-hero animate__animated animate__fadeInLeft">
+            <h1 class="display-4 fw-bold mb-4">Staj Mülakat Yönetim Sistemi</h1>
+            <p class="lead mb-5 opacity-75">Kırklareli Üniversitesi Mühendislik Fakültesi staj süreçlerinizi yönetin.</p>
+        </div>
+
+        @* SAĞ TARA (FORM) *@
+        <div class="col-lg-6 login-form-section animate__animated animate__fadeInRight">
+            <div class="login-card animate__animated animate__fadeInUp">
+
+                <h2 class="fw-bold mb-4 text-center" style="color: var(--text-dark);">Hesabınıza Giriş Yapın</h2>
+
+                @* Sekmeler *@
+                <ul class="nav nav-pills nav-justified mb-4">
+                    <li class="nav-item">
+                        <button class="nav-link @(activeTab == "student" ? "active active-student" : "")" @onclick='() => SetActiveTab("student", "Ogrenci")'>
+                            <i class="bi bi-mortarboard-fill me-2"></i>Öğrenci
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link @(activeTab == "hoca" ? "active active-hoca" : "")" @onclick='() => SetActiveTab("hoca", "OgretimGorevlisi")'>
+                            <i class="bi bi-person-workspace me-2"></i>Akademisyen
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link @(activeTab == "ois" ? "active active-ois" : "")" @onclick='() => SetActiveTab("ois", "OgrenciIsleri")'>
+                            <i class="bi bi-building-fill-gear me-2"></i>Personel
+                        </button>
+                    </li>
+                </ul>
+
+                @* Hata Mesajı *@
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mb-4">@errorMessage</div>
+                }
+
+                @* FORM *@
+                <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-floating mb-3">
+                        <InputText id="username" class="@($"form-control focus-{activeTab}")" @bind-Value="loginModel.Username" placeholder="Kullanıcı Adı" />
+                        <label for="username">Kullanıcı Adı / Numara</label>
+                        <ValidationMessage For="@(() => loginModel.Username)" class="text-danger small" />
+                    </div>
+
+                    <div class="form-floating mb-4">
+                        <InputText type="password" id="password" class="@($"form-control focus-{activeTab}")" @bind-Value="loginModel.Password" placeholder="Şifre" />
+                        <label for="password">Şifre</label>
+                        <ValidationMessage For="@(() => loginModel.Password)" class="text-danger small" />
+                    </div>
+
+                    <button type="submit" class="btn btn-login-modern w-100 @($"btn-{activeTab}-grad")" disabled="@isLoggingIn">
+                        @if (isLoggingIn)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        
+                            <span>Giriş Yapılıyor...</span>
+                        }
+                        else
+                        {
+                            <span>Giriş Yap</span>
+                        }
+                    </button>
+                </EditForm>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Model Sınıfı
+    public class LoginModel
+    {
+        [Required(ErrorMessage = "Kullanıcı adı zorunludur.")]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Şifre zorunludur.")]
+        public string Password { get; set; } = string.Empty;
+    }
+
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+    private bool isLoggingIn = false;
+    private string activeTab = "student";
+    private string selectedRole = "Ogrenci";
+
+    private void SetActiveTab(string tabName, string roleName)
+    {
+        activeTab = tabName;
+        selectedRole = roleName;
+        errorMessage = null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser != null)
+        {
+            Navigation.NavigateTo("/home");
+        }
+    }
+
+    // --- TEK VE DÜZELTİLMİŞ GİRİŞ METODU (GİZLİ ADMİN ÖZELLİKLİ) ---
+    private async Task HandleLogin()
+    {
+        isLoggingIn = true;
+        errorMessage = null;
+        StateHasChanged();
+        await Task.Delay(300);
+
+        string roleToCheck = selectedRole;
+        if (loginModel.Username.ToLower() == "admin")
+        {
+            roleToCheck = "Admin";
+        }
+
+        // Veritabanından kullanıcıyı kontrol et
+        var user = await AuthService.LoginAsync(loginModel.Username, loginModel.Password, roleToCheck);
+
+        if (user != null)
+        {
+            // --- KRİTİK DEĞİŞİKLİK BURADA ---
+
+            // 1. Bizim Custom Provider'a bu kullanıcının giriş yaptığını bildiriyoruz
+            var customAuthStateProvider = (CustomAuthenticationStateProvider)AuthStateProvider;
+            customAuthStateProvider.MarkUserAsAuthenticated(user);
+
+            // 2. Artık sayfayı yenilemeye (forceLoad: true) GEREK YOK.
+            // Sistem kullanıcının giriş yaptığını biliyor.
+
+            if (user.Role.RoleName == "Admin")
+            {
+                Navigation.NavigateTo("/admin-panel");
+            }
+            else
+            {
+                Navigation.NavigateTo("/home");
+            }
+        }
+        else
+        {
+            if (roleToCheck == "Admin") errorMessage = "Admin şifresi hatalı!";
+            else errorMessage = $"Giriş başarısız! '{selectedRole}' rolü için bilgiler hatalı.";
+
+            isLoggingIn = false;
+            StateHasChanged();
+        }
+    }
+
+}

@@ -1,0 +1,124 @@
+﻿@page "/ogrenci-panel"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using StajMulakatuygulamasi.Models
+@using StajMulakatuygulamasi.Services
+@* Sadece Öğrenciler Girebilsin *@
+@*@attribute [Authorize(Roles = "Ogrenci")] *@
+@inject AuthenticationStateProvider AuthStateProvider
+@inject SchedulingDataService DataService
+
+@rendermode InteractiveServer
+
+<PageTitle>Öğrenci Paneli</PageTitle>
+
+<div class="container py-4">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4 text-center">
+            <h2 class="fw-bold text-primary">👋 Hoş Geldiniz</h2>
+            <p class="text-muted">Staj mülakat durumunuz ve atanan randevunuz aşağıdadır.</p>
+        </div>
+    </div>
+
+    @if (mulakatlar == null)
+    {
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (mulakatlar.Count == 0)
+    {
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>
+                <strong>Henüz planlanmış bir mülakatınız bulunmamaktadır.</strong>
+                <br />
+                Lütfen daha sonra tekrar kontrol ediniz veya danışmanınızla iletişime geçiniz.
+            </div>
+        </div>
+    }
+    else
+    {
+        @foreach (var m in mulakatlar)
+        {
+            <div class="card border-primary mb-3 shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-check-fill me-2"></i>Mülakat Randevusu</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3 mb-md-0">
+                            <h1 class="display-4 fw-bold text-primary">@m.BaslangicSaati.Day</h1>
+                            <h4 class="text-uppercase text-muted">@m.BaslangicSaati.ToString("MMMM")</h4>
+                            <span class="badge bg-dark">@m.BaslangicSaati.ToString("yyyy")</span>
+                        </div>
+                        <div class="col-md-8">
+                            <h4 class="card-title">Mülakat Detayları</h4>
+                            <hr />
+                            <div class="row mb-2">
+                                <div class="col-4 fw-bold">Saat:</div>
+                                <div class="col-8">@m.BaslangicSaati.ToString("HH:mm") - @m.BitisSaati.ToString("HH:mm")</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-4 fw-bold">Görüşülecek Hoca:</div>
+                                <div class="col-8 fs-5">
+                                    @if (m.Hoca != null)
+                                    {
+                                        <span class="badge bg-info text-dark">@m.Hoca.Ad @m.Hoca.Soyad</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Belirtilmemiş</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-4 fw-bold">Durum:</div>
+                                <div class="col-8">
+                                    @if (m.Durum == "Planlandı")
+                                    {
+                                        <span class="badge bg-warning text-dark">Planlandı / Bekleniyor</span>
+                                    }
+                                    else if (m.Durum == "Tamamlandı")
+                                    {
+                                        <span class="badge bg-success">Tamamlandı</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">@m.Durum</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer text-muted text-center">
+                    Lütfen mülakat saatinden 10 dakika önce hazır bulununuz.
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<PlanlananMulakatlar> mulakatlar;
+    private int currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            var userIdClaim = user.FindFirst("UserId");
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int id))
+            {
+                currentUserId = id;
+                // AKADEMİSYEN PANELİNDEN TEK FARK BURASI:
+                // Öğrenci ID'sine göre arama yapıyoruz.
+                mulakatlar = await DataService.GetMulakatlarByOgrenciIdAsync(currentUserId);
+            }
+        }
+    }
+}

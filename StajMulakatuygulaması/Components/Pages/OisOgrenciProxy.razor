@@ -1,0 +1,248 @@
+﻿@page "/ois-ogrenci-proxy"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using StajMulakatuygulamasi.Services
+@* Modellerin olduğu namespace'i doğru yazdığınızdan emin olun *@
+@using StajMulakatuygulaması.Models
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+
+<PageTitle>Öğrenci Adına Belge Yükle</PageTitle>
+
+@* --- MODERN TASARIM İÇİN ÖZEL CSS --- *@
+<style>
+    :root {
+        --ois-primary: #8e2de2; /* Modern Mor-Bordo Geçişi */
+        --ois-secondary: #4a00e0;
+        --ois-accent: #ff6b6b; /* Vurgu Rengi */
+        --ois-bg-light: #f8f9fc;
+        --ois-text-dark: #2d3748;
+        --ois-card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    body {
+        background-color: var(--ois-bg-light);
+        color: var(--ois-text-dark);
+        font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    }
+
+    .modern-card {
+        border: none;
+        border-radius: 20px;
+        box-shadow: var(--ois-card-shadow);
+        background: #fff;
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+
+    .modern-card-header {
+        background: linear-gradient(135deg, var(--ois-primary), var(--ois-secondary));
+        color: white;
+        padding: 1.5rem;
+        border-bottom: none;
+    }
+
+    .btn-modern-back {
+        background: #fff;
+        color: var(--ois-text-dark);
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+        .btn-modern-back:hover {
+            background: #e2e8f0;
+            transform: translateX(-5px);
+        }
+
+    .btn-modern-primary {
+        background: linear-gradient(135deg, var(--ois-accent), #ee5253);
+        border: none;
+        color: white;
+        border-radius: 50px;
+        padding: 1rem 3rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        transition: all 0.3s ease;
+    }
+
+        .btn-modern-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(255, 107, 107, 0.6);
+        }
+
+    /* Radzen Dropdown Özelleştirme */
+    .rz-dropdown {
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 0.5rem !important;
+        box-shadow: none !important;
+        height: auto !important;
+    }
+
+        .rz-dropdown:hover, .rz-dropdown.rz-state-focused {
+            border-color: var(--ois-primary) !important;
+            box-shadow: 0 0 0 3px rgba(142, 45, 226, 0.1) !important;
+        }
+
+    .rz-dropdown-trigger-icon {
+        color: var(--ois-primary) !important;
+    }
+
+    .rz-listbox-item.rz-state-focused, .rz-listbox-item:hover {
+        background-color: rgba(142, 45, 226, 0.1) !important;
+        color: var(--ois-primary) !important;
+    }
+
+    /* Dosya Yükleme Alanı (Dropzone) */
+    .modern-dropzone {
+        border: 3px dashed #cbd5e0;
+        border-radius: 20px;
+        background: #fcfdff;
+        transition: all 0.3s ease;
+    }
+
+        .modern-dropzone:hover {
+            border-color: var(--ois-accent);
+            background: #fff5f5;
+        }
+</style>
+@* --------------------------------------- *@
+
+
+<div class="container py-5 animate__animated animate__fadeIn">
+
+    @* Üst Başlık ve Geri Dön Butonu *@
+    <div class="d-flex align-items-center justify-content-between mb-5">
+        <h2 class="fw-bold mb-0 d-flex align-items-center" style="color: var(--ois-secondary);">
+            <span class="me-3 p-2 rounded-circle d-flex align-items-center justify-content-center" style="background: rgba(142, 45, 226, 0.1);">
+                <i class="bi bi-person-up-fill" style="color: var(--ois-primary);"></i>
+            </span>
+            Öğrenci Adına İşlem Paneli
+        </h2>
+        <button class="btn btn-modern-back shadow-sm" @onclick='() => Navigation.NavigateTo("/home")'>
+            <i class="bi bi-arrow-left me-2"></i> Ana Sayfaya Dön
+        </button>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            @if (isLoading)
+            {
+                <div class="text-center p-5 modern-card">
+                    <div class="spinner-border" style="color: var(--ois-primary); width: 3rem; height: 3rem;" role="status"></div>
+                    <p class="mt-4 text-muted fs-5">Öğrenci listesi yükleniyor, lütfen bekleyin...</p>
+                </div>
+            }
+            else
+            {
+                @* 1. ADIM: ÖĞRENCİ SEÇİMİ KARTI *@
+                <div class="modern-card mb-5 animate__animated animate__fadeInUp">
+                    <div class="card-body p-5">
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3" style="color: var(--ois-primary);">
+                                <h4 class="mb-0 fw-bold">01</h4>
+                            </div>
+                            <h4 class="fw-bold mb-0">İşlem Yapılacak Öğrenciyi Seçin</h4>
+                        </div>
+
+                        <p class="text-muted mb-4">Belge yükleme işlemi yapmak istediğiniz öğrenciyi listeden arayarak bulun ve seçin.</p>
+
+                        @* RADZEN DROPDOWN BİLEŞENİ *@
+                        <RadzenDropDown Data=@studentList
+                                        @bind-Value=@selectedStudentId
+                                        ValueProperty="UserId"
+                                        Change=@(args => OnStudentChange(args))
+                                        AllowClear="true"
+                                        AllowFiltering="true"
+                                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                        FilterOperator="StringFilterOperator.Contains"
+                                        Placeholder="Öğrenci adı veya numarası ile arama yapın..."
+                                        Style="width: 100%; font-size: 1.1rem;"
+                                        Class="w-100">
+                            <Template Context="ogrenci">
+                                <div class="d-flex align-items-center py-1">
+                                    <img src="https://ui-avatars.com/api/?name=@ogrenci.Ad+@ogrenci.Soyad&background=random&color=fff&size=40" class="rounded-circle me-3 shadow-sm" alt="@ogrenci.Ad">
+                                    <div>
+                                        <div class="fw-bold fs-5">@ogrenci.Ad @ogrenci.Soyad</div>
+                                        <div class="text-muted small"><i class="bi bi-mortarboard-fill me-1"></i>Öğrenci No: @ogrenci.Username</div>
+                                    </div>
+                                </div>
+                            </Template>
+                        </RadzenDropDown>
+                        @* -------------------------- *@
+                    </div>
+                </div>
+
+                @* 2. ADIM: BELGE YÜKLEME KARTI *@
+                @if (selectedStudentId != null)
+                {
+                    <div class="modern-card animate__animated animate__fadeInUp" style="animation-delay: 0.2s;">
+                        <div class="modern-card-header">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-white bg-opacity-25 p-3 rounded-circle me-3 text-white">
+                                    <h4 class="mb-0 fw-bold">02</h4>
+                                </div>
+                                <h4 class="mb-0 fw-bold">Staj Belgesi Yükleme</h4>
+                            </div>
+                        </div>
+                        <div class="card-body p-5 text-center">
+
+                            <div class="mb-5">
+                                <h5 class="text-muted mb-2">Seçilen Öğrenci</h5>
+                                <h3 class="fw-bold" style="color: var(--ois-primary);">@selectedStudentName</h3>
+                            </div>
+
+                            @* MODERN DOSYA YÜKLEME ALANI *@
+                            <div class="modern-dropzone p-5 mb-5 position-relative cursor-pointer">
+                                <div class="mb-3">
+                                    <i class="bi bi-cloud-arrow-up-fill display-1" style="color: var(--ois-accent);"></i>
+                                </div>
+                                <h4 class="fw-bold mb-2">Staj Belgesini (PDF) Buraya Sürükleyin</h4>
+                                <p class="text-muted fs-5 mb-0">veya dosya gezginini açmak için tıklayın</p>
+                                <input type="file" class="form-control visually-hidden" style="position: absolute; left:0; top:0; width:100%; height:100%; cursor: pointer; z-index: 10;" accept=".pdf" />
+                            </div>
+
+                            <button class="btn btn-modern-primary btn-lg">
+                                <i class="bi bi-check-lg me-2"></i> Belgeyi Sisteme Kaydet
+                            </button>
+                            <p class="text-muted mt-4 mb-0 small"><i class="bi bi-info-circle me-1"></i> *Not: Şu an için kaydet butonu demo amaçlıdır, dosya sunucuya yüklenmeyecektir.</p>
+
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<Kullanicilar> studentList = new();
+    private int? selectedStudentId = null;
+    private string selectedStudentName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        studentList = await AuthService.GetAllStudentsAsync();
+        isLoading = false;
+    }
+
+    private void OnStudentChange(object value)
+    {
+        if (value is int userId)
+        {
+            selectedStudentId = userId;
+            var student = studentList.FirstOrDefault(s => s.UserId == userId);
+            selectedStudentName = student != null ? $"{student.Ad} {student.Soyad}" : "";
+        }
+        else
+        {
+            selectedStudentId = null;
+            selectedStudentName = "";
+        }
+    }
+}

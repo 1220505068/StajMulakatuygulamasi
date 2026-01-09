@@ -1,0 +1,25 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using StajMulakatuygulaması.Components.Layout
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @* YETKİSİ YOKSA BURASI ÇALIŞIR *@
+                    <div class="alert alert-danger m-4">
+                        <h4>Erişim Reddedildi</h4>
+                        <p>Bu sayfayı görüntüleme yetkiniz yok. Lütfen giriş yapın.</p>
+                        <a href="/" class="btn btn-primary">Giriş Sayfasına Dön</a>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <PageTitle>Sayfa Bulunamadı</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Aradığınız sayfa bulunamadı.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

@@ -1,0 +1,158 @@
+﻿@page "/Mulakat-takvimi"
+@using Microsoft.AspNetCore.Authorization
+@using StajMulakatuygulamasi.Models
+@using StajMulakatuygulamasi.Services
+
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject SchedulingDataService DataService
+
+<PageTitle>Mülakat Zaman Çizelgesi</PageTitle>
+
+<button class="btn btn-outline-secondary mb-4" @onclick='() => Navigation.NavigateTo("/home")'>
+    <i class="bi bi-arrow-left me-2"></i> Ana Sayfaya Geri Dön
+</button>
+
+<div class="row mb-4">
+    <div class="col-lg-12 mx-auto">
+        <h2 class="fw-bold mb-3" style="color: var(--klu-dark-blue);">Mülakat Zaman Çizelgesi</h2>
+        <p class="lead text-muted">
+            Aşağıdaki tablo, sistem tarafından otomatik olarak planlanan ve onaylanan final mülakat zaman çizelgesini göstermektedir.
+        </p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="dashboard-card p-4 shadow-lg">
+
+            <h5 class="card-title fw-bold fs-4 mb-4 text-center" style="color: var(--klu-dark-blue);">
+                <i class="bi bi-file-earmark-bar-graph-fill me-2 card-icon-accent"></i> Planlanmış Mülakatlar
+            </h5>
+
+            <div class="d-flex justify-content-end mb-4">
+                <button class="btn btn-danger me-3 shadow-sm" onclick="alert('PDF indirme özelliği yakında eklenecek!')">
+                    <i class="bi bi-file-earmark-pdf-fill me-1"></i> PDF Olarak İndir
+                </button>
+                <button class="btn btn-success shadow-sm" onclick="alert('Excel indirme özelliği yakında eklenecek!')">
+                    <i class="bi bi-file-earmark-excel-fill me-1"></i> Excel Olarak İndir
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle border-primary">
+                    <thead class="bg-klu-dark text-white table-dark">
+                        <tr>
+                            <th>Tarih</th>
+                            <th>Saat</th>
+                            <th>Öğrenci Adı Soyadı</th>
+                            <th>Öğretim Üyesi</th>
+                            <th>Konum</th>
+                            <th>Durum</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @if (mulakatListesi == null)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="mt-2">Veriler Yükleniyor...</p>
+                                </td>
+                            </tr>
+                        }
+                        else if (mulakatListesi.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="alert alert-warning">
+                                        Henüz planlanmış bir mülakat bulunmamaktadır.
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in mulakatListesi)
+                            {
+                                <tr class="table-striped">
+                                    @* TARİH *@
+                                    <td>@item.BaslangicSaati.ToString("dd MMMM yyyy")</td>
+
+                                    @* SAAT *@
+                                    <td class="text-nowrap fw-bold text-primary">
+                                        @item.BaslangicSaati.ToString("HH:mm") - @item.BitisSaati.ToString("HH:mm")
+                                    </td>
+
+                                    @* ÖĞRENCİ *@
+                                    <td class="fw-bold">
+                                        @if (item.Student != null)
+                                        {
+                                            @($"{item.Student.Ad} {item.Student.Soyad}")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Silinmiş Öğrenci</span>
+                                        }
+                                    </td>
+
+                                    @* HOCA *@
+                                    <td>
+                                        @if (item.Hoca != null)
+                                        {
+                                            @($"{item.Hoca.Ad} {item.Hoca.Soyad}")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Atanmamış</span>
+                                        }
+                                    </td>
+
+                                    @* KONUM (Şimdilik Sabit veya Modelden Gelebilir) *@
+                                    <td>Online / Ofis</td>
+
+                                    @* DURUM *@
+                                    <td>
+                                        @if (item.Durum == "Planlandı")
+                                        {
+                                            <span class="badge text-bg-primary">Planlandı</span>
+                                        }
+                                        else if (item.Durum == "Tamamlandı")
+                                        {
+                                            <span class="badge text-bg-success">Tamamlandı</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">@item.Durum</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @* Sayfalama kısmı şu an görsel, ileride aktifleştirilebilir *@
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item disabled"><a class="page-link" href="#"><i class="bi bi-chevron-left"></i></a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item"><a class="page-link" href="#"><i class="bi bi-chevron-right"></i></a></li>
+                </ul>
+            </nav>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<PlanlananMulakatlar> mulakatListesi;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Sayfa açıldığında tüm mülakatları veritabanından çek
+        mulakatListesi = await DataService.GetAllMulakatlarAsync();
+    }
+}

@@ -1,0 +1,344 @@
+﻿@page "/ois-hoca-proxy"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using StajMulakatuygulamasi.Services
+@using StajMulakatuygulaması.Models
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+
+<PageTitle>Akademisyen Adına İşlem Yap</PageTitle>
+
+@* --- MODERN TURUNCU TEMA İÇİN ÖZEL CSS --- *@
+<style>
+    :root {
+        /* Turuncu Tema Renkleri */
+        --ois-orange-primary: #ff9f43;
+        --ois-orange-secondary: #ee5a24;
+        --ois-orange-accent: #ffc312;
+        --ois-bg-light: #f8f9fc;
+        --ois-text-dark: #2d3748;
+        --ois-card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    body {
+        background-color: var(--ois-bg-light);
+        color: var(--ois-text-dark);
+        font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    }
+
+    /* Genel Kart ve Buton Stilleri (Öğrenci sayfasıyla aynı yapıda) */
+    .modern-card {
+        border: none;
+        border-radius: 20px;
+        box-shadow: var(--ois-card-shadow);
+        background: #fff;
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+
+    .modern-card-header-orange {
+        background: linear-gradient(135deg, var(--ois-orange-primary), var(--ois-orange-secondary));
+        color: white;
+        padding: 1.5rem;
+        border-bottom: none;
+    }
+
+    .btn-modern-back {
+        background: #fff;
+        color: var(--ois-text-dark);
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+        .btn-modern-back:hover {
+            background: #e2e8f0;
+            transform: translateX(-5px);
+        }
+
+    .btn-modern-orange {
+        background: linear-gradient(135deg, var(--ois-orange-secondary), var(--ois-orange-primary));
+        border: none;
+        color: white;
+        border-radius: 50px;
+        padding: 1rem 3rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        box-shadow: 0 5px 15px rgba(238, 90, 36, 0.4);
+        transition: all 0.3s ease;
+    }
+
+        .btn-modern-orange:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(238, 90, 36, 0.6);
+        }
+
+    /* Radzen Dropdown Özelleştirme (Turuncu Vurgulu) */
+    .rz-dropdown {
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 0.5rem !important;
+        box-shadow: none !important;
+        height: auto !important;
+    }
+
+        .rz-dropdown:hover, .rz-dropdown.rz-state-focused {
+            border-color: var(--ois-orange-primary) !important;
+            box-shadow: 0 0 0 3px rgba(255, 159, 67, 0.2) !important;
+        }
+
+    .rz-dropdown-trigger-icon {
+        color: var(--ois-orange-secondary) !important;
+    }
+
+    /* --- MODERN ZAMAN TABLOSU STİLLERİ --- */
+    .modern-table thead th {
+        background-color: #2d3436;
+        color: #dfe6e9;
+        border: none;
+        font-weight: 600;
+        letter-spacing: 1px;
+        padding: 1rem;
+    }
+
+    .time-slot-label {
+        background-color: #f1f2f6;
+        font-weight: 700;
+        color: var(--ois-text-dark);
+        border-right: 3px solid var(--ois-orange-primary);
+    }
+
+    /* Modern Checkbox/Toggle Butonu */
+    .modern-toggle {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+    }
+
+        .modern-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 34px;
+    }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+    input:checked + .slider {
+        background: linear-gradient(135deg, var(--ois-orange-secondary), var(--ois-orange-primary));
+    }
+
+    input:focus + .slider {
+        box-shadow: 0 0 1px var(--ois-orange-primary);
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(26px);
+    }
+
+    /* Toggle üzerine gelince */
+    .modern-toggle:hover .slider {
+        background-color: #b2bec3;
+    }
+
+    .modern-toggle:hover input:checked + .slider {
+        background: linear-gradient(135deg, #d35400, #e67e22);
+    }
+</style>
+
+
+<div class="container py-5 animate__animated animate__fadeIn">
+
+    @* Üst Başlık ve Geri Dön Butonu *@
+    <div class="d-flex align-items-center justify-content-between mb-5">
+        <h2 class="fw-bold mb-0 d-flex align-items-center" style="color: var(--ois-text-dark);">
+            <span class="me-3 p-2 rounded-circle d-flex align-items-center justify-content-center" style="background: rgba(255, 159, 67, 0.2);">
+                <i class="bi bi-person-workspace" style="color: var(--ois-orange-secondary);"></i>
+            </span>
+            Akademisyen Adına İşlem Paneli
+        </h2>
+        <button class="btn btn-modern-back shadow-sm" @onclick='() => Navigation.NavigateTo("/home")'>
+            <i class="bi bi-arrow-left me-2"></i> Ana Sayfaya Dön
+        </button>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            @if (isLoading)
+            {
+                <div class="text-center p-5 modern-card">
+                    <div class="spinner-border" style="color: var(--ois-orange-primary); width: 3rem; height: 3rem;" role="status"></div>
+                    <p class="mt-4 text-muted fs-5">Akademisyen listesi yükleniyor, lütfen bekleyin...</p>
+                </div>
+            }
+            else
+            {
+                @* 1. ADIM: HOCA SEÇİMİ KARTI *@
+                <div class="modern-card mb-5 animate__animated animate__fadeInUp">
+                    <div class="card-body p-5">
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="bg-warning bg-opacity-25 p-3 rounded-circle me-3" style="color: var(--ois-orange-secondary);">
+                                <h4 class="mb-0 fw-bold">01</h4>
+                            </div>
+                            <h4 class="fw-bold mb-0">İşlem Yapılacak Akademisyeni Seçin</h4>
+                        </div>
+
+                        <p class="text-muted mb-4">Müsaitlik durumu veya diğer bilgilerini güncellemek istediğiniz öğretim görevlisini listeden arayarak bulun.</p>
+
+                        @* RADZEN DROPDOWN BİLEŞENİ (Turuncu Temalı) *@
+                        <RadzenDropDown Data=@hocaList
+                                        @bind-Value=@selectedHocaId
+                                        ValueProperty="UserId"
+                                        Change=@(args => OnHocaChange(args))
+                                        AllowClear="true"
+                                        AllowFiltering="true"
+                                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                        FilterOperator="StringFilterOperator.Contains"
+                                        Placeholder="Akademisyen adı veya kullanıcı adı ile arama yapın..."
+                                        Style="width: 100%; font-size: 1.1rem;"
+                                        Class="w-100">
+                            <Template Context="hoca">
+                                <div class="d-flex align-items-center py-1">
+                                    <img src="https://ui-avatars.com/api/?name=@hoca.Ad+@hoca.Soyad&background=random&color=fff&size=40" class="rounded-circle me-3 shadow-sm" alt="@hoca.Ad">
+                                    <div>
+                                        <div class="fw-bold fs-5">@hoca.Ad @hoca.Soyad</div>
+                                        <div class="text-muted small"><i class="bi bi-person-badge-fill me-1"></i>Kullanıcı Adı: @hoca.Username</div>
+                                    </div>
+                                </div>
+                            </Template>
+                        </RadzenDropDown>
+                        @* -------------------------- *@
+                    </div>
+                </div>
+
+                @* 2. ADIM: MÜSAİTLİK TABLOSU KARTI *@
+                @if (selectedHocaId != null)
+                {
+                    <div class="modern-card animate__animated animate__fadeInUp" style="animation-delay: 0.2s;">
+                        <div class="modern-card-header-orange">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-white bg-opacity-25 p-3 rounded-circle me-3 text-white">
+                                    <h4 class="mb-0 fw-bold">02</h4>
+                                </div>
+                                <h4 class="mb-0 fw-bold">Müsaitlik Durumu Belirle</h4>
+                            </div>
+                        </div>
+                        <div class="card-body p-5">
+
+                            <div class="text-center mb-5">
+                                <h5 class="text-muted mb-2">Seçilen Akademisyen</h5>
+                                <h3 class="fw-bold" style="color: var(--ois-orange-secondary);">@selectedHocaName</h3>
+                            </div>
+
+                            <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center" role="alert" style="background-color: #fff3cd; color: #856404;">
+                                <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+                                <div>
+                                    <strong>Bilgilendirme:</strong> Aşağıdaki tabloda, öğretim görevlisinin mülakat yapabileceği saat dilimlerini "Müsait" duruma (turuncu) getirin.
+                                </div>
+                            </div>
+
+                            @* --- MODERNLEŞTİRİLMİŞ MÜSAİTLİK TABLOSU --- *@
+                            <div class="table-responsive rounded-3 shadow-sm mt-4">
+                                <table class="table table-borderless modern-table text-center align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-start ps-4">Saat Aralığı</th>
+                                            <th>Pazartesi</th>
+                                            <th>Salı</th>
+                                            <th>Çarşamba</th>
+                                            <th>Perşembe</th>
+                                            <th>Cuma</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (int i = 9; i <= 16; i++)
+                                        {
+                                            if (i == 12) continue; // Öğle arası
+                                                                   <tr class="border-bottom">
+                                                                       <td class="time-slot-label text-start ps-4">@(i.ToString("D2")):00 - @((i + 1).ToString("D2")):00</td>
+                                                @for (int j = 1; j <= 5; j++)
+                                                {
+                                                    <td class="p-3">
+                                                        @* MODERN TOGGLE SWITCH *@
+                                                        <label class="modern-toggle">
+                                                            <input type="checkbox" id="@($"proxy_musait_{j}_{i}")">
+                                                            <span class="slider"></span>
+                                                        </label>
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            @* --- TABLO SONU --- *@
+
+                            <div class="text-center mt-5">
+                                <button class="btn btn-modern-orange btn-lg">
+                                    <i class="bi bi-calendar-check-fill me-2"></i> Seçili Saatleri Kaydet
+                                </button>
+                                <p class="text-muted mt-4 mb-0 small"><i class="bi bi-info-circle me-1"></i> *Not: Şu an için kaydet butonu demo amaçlıdır.</p>
+                            </div>
+
+                        </div>
+                    </div>
+                }
+            }
+
+        </div>
+    </div>
+</div>
+
+
+@code {
+    private bool isLoading = true;
+    private List<Kullanicilar> hocaList = new();
+    private int? selectedHocaId = null;
+    private string selectedHocaName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        hocaList = await AuthService.GetAllInstructorsAsync();
+        isLoading = false;
+    }
+
+    private void OnHocaChange(object value)
+    {
+        if (value is int userId)
+        {
+            selectedHocaId = userId;
+            var hoca = hocaList.FirstOrDefault(h => h.UserId == userId);
+            selectedHocaName = hoca != null ? $"{hoca.Ad} {hoca.Soyad}" : "";
+        }
+        else
+        {
+            selectedHocaId = null;
+            selectedHocaName = "";
+        }
+    }
+}
